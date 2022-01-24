@@ -1,0 +1,99 @@
+target = cli.String("target")
+port = cli.String("port", cli.setDefault("80,8080,443,7000-7002,8000-8002,8080-8082,64333"))
+tags = cli.String("tags", cli.setDefault("rce"))
+
+yakit.AutoInitYakit()
+
+yakit.Info("加载 target: %v port: %v", target, port)
+
+yakit.SetProgress(0.1)
+res, err := servicescan.Scan(target, port)
+die(err)
+
+yakit.Info("创建指纹识别模块成功")
+yakit.SetProgress(0.2)
+
+vulCount = 0
+addVul = func() {
+    vulCount++
+    yakit.StatusCard("发现漏洞", vulCount)
+}
+
+pocSwg = sync.NewSizedWaitGroup(5)
+submitPoc = func(urlStr) {
+    pocSwg.Add()
+    go func{
+        defer pocSwg.Done()
+
+        yakit.Info("PoC 检测：%v", urlStr)
+        defer yakit.Info("PoC 检测完成：%v", urlStr)
+
+
+        vuls, err = nuclei.Scan(urlStr, nuclei.tags(tags), nuclei.retry(0), nuclei.stopAtFirstMatch(true), nuclei.timeout(5))
+        if err != nil {
+            yakit.Error("PoC 检测[%v]失败：%v", urlStr, err)
+            return
+        }
+
+        yakit.Info("开始获取 PoC 检测结果：%v", urlStr)
+        for vul := range vuls {
+            // desc(vul)
+            vulInfo = json.loads(json.dumps(vul))
+            yakit.Info("发现漏洞：%v Target: %v", vulInfo.PocName, vulInfo.Target)
+            addVul()
+        }
+    }
+}
+
+swg = sync.NewSizedWaitGroup(10)
+submitCrawler = func(r) {
+    swg.Add()
+    pocSwg.Add()
+    go func{
+        defer pocSwg.Done()
+        defer swg.Done()
+
+        target = str.HostPort(r.Target, r.Port)
+        res, err := crawler.Start(str.HostPort(r.Target, r.Port), crawler.maxRequest(10))
+        if err != nil {
+            log.error("crawler for %v failed: %s", target)
+            return
+        }
+
+        for req = range res {
+            yakit.Info("输出 URL：%v", req.Url())
+            submitPoc(req.Url())
+        }
+    }
+}
+
+yakit.Info("开始收集扫描结果...")
+openPortCount = 0
+allPortCount = 0
+for result := range res {
+    allPortCount ++
+    if result.IsOpen() {
+        openPortCount ++
+        submitCrawler(result)
+    }
+    yakit.StatusCard("开放端口/总扫描", sprintf("%v/%v", openPortCount, allPortCount))
+}
+
+
+// 处理结果等待
+wg = sync.NewSizedWaitGroup(3)
+wg.Add()
+go func{
+    defer wg.Done()
+    swg.Wait()
+}
+
+wg.Add()
+go func{
+    defer wg.Done()
+    pocSwg.Wait()
+}
+
+yakit.SetProgress(0.4)
+wg.Wait()
+yakit.SetProgress(1.0)

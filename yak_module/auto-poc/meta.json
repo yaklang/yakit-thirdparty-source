@@ -1,0 +1,43 @@
+{
+    "name": "端口扫描+爬虫+PoC扫描",
+    "tags": [
+        "demo",
+        "auto"
+    ],
+    "help": "流程自动化 Demo",
+    "author": "v1ll4n",
+    "module_file": "yak_module.yak",
+    "params": [
+        {
+            "name": "target",
+            "verbose": "扫描目标",
+            "description": "需要扫描的目标",
+            "type": "string",
+            "default_value": "cybertunnel.run",
+            "required": true,
+            "group": ""
+        },
+        {
+            "name": "port",
+            "verbose": "端口",
+            "description": "",
+            "type": "",
+            "default_value": "",
+            "required": false,
+            "group": ""
+        },
+        {
+            "name": "tags",
+            "verbose": "限定 PoC Tags",
+            "description": "",
+            "type": "",
+            "default_value": "rce",
+            "required": false,
+            "group": ""
+        }
+    ],
+    "document": "document.md",
+    "general_module_verbose": "",
+    "general_module_key": "",
+    "is_general_module": false
+}
